@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dyn:jobs xmlns:dyn="http://www.rte-france.com/dynawo">
+    <dyn:job name="Job">
+        <dyn:solver lib="dynawo_SolverIDA" parFile="IEEE14.par" parId="Solver"/>
+        <dyn:modeler compileDir="outputs/compilation">
+            <dyn:network iidmFile="IEEE14.iidm" parFile="IEEE14.par" parId="NETWORK"/>
+            <dyn:dynModels dydFile="IEEE14.dyd"/>
+            <dyn:precompiledModels useStandardModels="true"/>
+            <dyn:modelicaModels useStandardModels="false"/>
+        </dyn:modeler>
+        <dyn:simulation startTime="0.0" stopTime="10.0" precision="1.0E-7"/>
+        <dyn:outputs directory="outputs">
+            <dyn:dumpInitValues local="false" global="false"/>
+            <dyn:timeline exportMode="TXT"/>
+            <dyn:finalState exportIIDMFile="true" exportDumpFile="false"/>
+            <dyn:logs>
+                <dyn:appender tag="" file="dynawo.log" lvlFilter="INFO"/>
+            </dyn:logs>
+        </dyn:outputs>
+    </dyn:job>
+</dyn:jobs>

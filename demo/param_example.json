@@ -1,0 +1,26 @@
+{
+    "paths": {        
+        "dynawo": "../../Dynawo",
+        "input": "../example/IEEE14/Input",
+        "faults": "../example/IEEE14/Input/Faults",
+        "network": "../example/IEEE14/Input/Network",
+        "output": "../example/IEEE14/Output",
+        "output_input": "../example/IEEE14/Output/Input",
+        "output_eeac": "../example/IEEE14/Output/EEAC",
+        "output_dynawo": "../example/IEEE14/Output/Dynawo"
+    },
+    "filenames": {
+        "eeac_clusters_results": "critical_cluster_results.json",
+        "eeac_param": "param_eeac.json",
+        "dynawo_zip_results": "dynawo.zip"
+    },
+    "parameters": {
+    	"protection_delay": 0.1,
+    	"delta": 0.1,
+        "base_power": 100,
+        "time_lap": 0.1,
+        "low_bound": 0.1,
+        "high_bound": 0.8,
+        "gap": 0.01
+    }
+}

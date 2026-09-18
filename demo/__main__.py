@@ -1,12 +1,13 @@
+import sys
 import logging
 import json
 import shutil
 import time
 from datetime import datetime, timedelta
-from demo.config import config
-from demo.eeac_runner import run_eeac, parse_eeac_results
-from demo.dynawo_runner import run_dynawo
-from demo.utils import get_fault_files, modify_par_file, modify_dyd_file, get_network_files
+from .config import config
+from .eeac_runner import run_eeac, parse_eeac_results
+from .dynawo_runner import run_dynawo
+from .utils import get_fault_files, modify_par_file, modify_dyd_file, get_network_files
 from pathlib import Path
 from typing import List
 
@@ -63,8 +64,9 @@ def process_network(network_dir: Path) -> None:
     if list2:
         run_dynawo(network_dir, list2)
 
-def main():
-    """Main program: run process every 30 minutes."""
+def demo(args=None):
+    """ Main program: run process every 30 minutes."""
+
     # Folder list
     network_dirs = []
     for d in config.NETWORK_DIR.iterdir():
@@ -81,4 +83,4 @@ def main():
             time.sleep(config.TIME_LAP * 60)
 
 if __name__ == "__main__":
-    main()
+    demo(sys.argv[1:])

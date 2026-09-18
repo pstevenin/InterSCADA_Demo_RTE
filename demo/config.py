@@ -1,8 +1,19 @@
 import json
+import argparse
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-CONFIG_FILE = BASE_DIR / "demo_param.json"
+# Get config file
+parser = argparse.ArgumentParser(description="Choose configuration file.")
+parser.add_argument(
+    "--config",
+    type=str,
+    default="param_example.json",
+    help="configuration json file name",
+)
+args = parser.parse_args()
+
+BASE_DIR = Path(__file__).resolve().parent
+CONFIG_FILE = BASE_DIR / args.config
 
 class Config:
     def __init__(self, config_path: Path = CONFIG_FILE):

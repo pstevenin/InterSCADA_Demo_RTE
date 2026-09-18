@@ -1,0 +1,11 @@
+{
+    "fault_type": "TransformerFault",
+    "static_id": "_BUS____4-BUS____9-1_PT",
+    "terminal_1": "_BUS____4_TN",
+    "terminal_2": "_BUS____9_TN",
+    "r_fault": 0.0,
+    "x_fault": 0.001,
+    "t_begin_fault": 1.0,
+    "t_end_fault": 1.1,
+    "t_disconnect": 1.1
+}
