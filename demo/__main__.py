@@ -3,6 +3,7 @@ import logging
 import json
 import shutil
 import time
+import os
 from datetime import datetime, timedelta
 from .config import config
 from .eeac_runner import run_eeac, parse_eeac_results
@@ -16,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 def prepare_input(network_dir: Path, fault_files: List[Path]):
     """Prepare input files."""
+    # Delete previous outputs
+    if os.path.isdir(config.OUTPUT_DIR):
+        shutil.rmtree(config.OUTPUT_DIR)
     # Create input and output folders
     config.OUTPUT_TEMP_DIR.mkdir(parents=True, exist_ok=True)
     config.OUTPUT_EEAC_DIR.mkdir(parents=True, exist_ok=True)
