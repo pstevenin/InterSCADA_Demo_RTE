@@ -30,9 +30,9 @@ class Config:
         self.FAULTS_DIR = BASE_DIR / paths["faults"]
         self.NETWORK_DIR = BASE_DIR / paths["network"]
         self.OUTPUT_DIR = BASE_DIR / paths["output"]
-        self.OUTPUT_INPUT_DIR = BASE_DIR / paths["output_input"]
+        self.OUTPUT_TEMP_DIR = BASE_DIR / paths["output_temp"]
         self.OUTPUT_EEAC_DIR = BASE_DIR / paths["output_eeac"]
-        self.OUTPUT_DYNAWO_DIR = BASE_DIR / paths["output_dynawo"]
+        self.OUTPUT_RESULTS_DIR = BASE_DIR / paths["output_results"]
 
         # Filenames
         self.OUTPUT_EEAC_FILE = filenames["eeac_clusters_results"]

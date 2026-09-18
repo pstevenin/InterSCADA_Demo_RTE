@@ -19,7 +19,7 @@ def run_eeac(network_dir: Path) -> None:
     fault_files = get_fault_files()
 
     for fault_file in fault_files:
-        iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_INPUT_DIR / network_dir.name / fault_file.stem)
+        iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem)
         fault_name = fault_file.stem
         fault_output_dir = temp_output_dir / fault_name
         fault_output_dir.mkdir(parents=True, exist_ok=True)

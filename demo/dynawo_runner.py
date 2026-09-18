@@ -1,9 +1,8 @@
 import logging
 import subprocess
 from lxml import etree
-import json
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 from demo.config import config
 from demo.utils import update_par_file, get_network_files
 
@@ -44,17 +43,13 @@ def compute_cct(par_file: Path, jobs_file: Path) -> float:
 
     return cct-t_fault
 
-def run_dynawo(network_dir: Path, faults_list2: List[str]) -> None:
+def run_dynawo(network_dir: Path, faults_list2: List[str]) -> Dict:
     """Run dynawo for faults from list 2."""
     network_name = network_dir.name
-    dynawo_output_dir = config.OUTPUT_DYNAWO_DIR / network_name
-    dynawo_output_dir.mkdir(parents=True, exist_ok=True)
-
+    result_cct = {}
     for fault_name in faults_list2:
 
-        fault_name_dir = dynawo_output_dir / fault_name
-        fault_name_dir.mkdir(parents=True, exist_ok=True)
-        iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_INPUT_DIR / network_dir.name / fault_name)
+        iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_name)
 
         # Calculate CCT
         logger.info(f"Calculating CCT for {network_name} - {fault_name}")
@@ -62,20 +57,18 @@ def run_dynawo(network_dir: Path, faults_list2: List[str]) -> None:
 
         if cct < config.PROTECTION_DELAY:
             status = "NOK"
-            margin = ""
+            margin = "None"
         elif cct < config.PROTECTION_DELAY + config.DELTA:
             status = "LOW_MARGIN"
             margin = cct - config.PROTECTION_DELAY
         else:
             status = "OK"
-            margin = ""
+            margin = "None"
 
-        result_cct = {
-            fault_name: {
-                "status": status,
-                "margin": margin,
-                "CCT": cct
-            }
+        result_cct[fault_name] = {
+            "status": status,
+            "margin": margin,
+            "CCT": cct
         }
 
-        (fault_name_dir / "results.json").write_text(json.dumps(result_cct, indent=2))
+    return result_cct

@@ -16,15 +16,15 @@ logger = logging.getLogger(__name__)
 
 def prepare_input(network_dir: Path, fault_files: List[Path]):
     """Prepare input files."""
-    # Create input folders
-    config.OUTPUT_INPUT_DIR.mkdir(parents=True, exist_ok=True)
-    config.OUTPUT_DYNAWO_DIR.mkdir(parents=True, exist_ok=True)
+    # Create input and output folders
+    config.OUTPUT_TEMP_DIR.mkdir(parents=True, exist_ok=True)
     config.OUTPUT_EEAC_DIR.mkdir(parents=True, exist_ok=True)
+    config.OUTPUT_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Prepare files
     iidm_file, dyd_file, jobs_file, par_file = get_network_files(network_dir)
     for fault_file in fault_files:
-        fault_dir = config.OUTPUT_INPUT_DIR / network_dir.name / fault_file.stem
+        fault_dir = config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
         fault_dir.mkdir(parents=True, exist_ok=True)
         # Copy files
         shutil.copy(iidm_file, fault_dir)
@@ -53,16 +53,21 @@ def process_network(network_dir: Path) -> None:
     list1, list2 = parse_eeac_results(network_dir)
 
     # Save list 1 results
+    result_eeac = {}
     if list1:
-        output_network_dir = config.OUTPUT_EEAC_DIR / network_name
-        result ={}
         for fault_name, cct, cluster in list1:
-            result[fault_name] = {"status": "OK", "margin": "None", "CCT": cct, "critical_cluster": cluster}
-            (output_network_dir / "result.json").write_text(json.dumps(result, indent=2))
+            result_eeac[fault_name] = {"status": "OK", "margin": "None", "CCT": cct}
 
-    # Step 3: Run dynawo-algorithms for list 2
+    # Step 3: Run dynawo for list 2
+    result_dynawo = {}
     if list2:
-        run_dynawo(network_dir, list2)
+        result_dynawo = run_dynawo(network_dir, list2)
+
+    # Step 4: Write final results
+    output_result_dir = config.OUTPUT_RESULTS_DIR / network_name
+    output_result_dir.mkdir(parents=True, exist_ok=True)
+    result_final = {**result_eeac, **result_dynawo}
+    (output_result_dir / "result.json").write_text(json.dumps(result_final, indent=2))
 
 def demo(args=None):
     """ Main program: run process every 30 minutes."""

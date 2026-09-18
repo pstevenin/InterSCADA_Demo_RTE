@@ -5,9 +5,9 @@
         "faults": "../example/IEEE14/Input/Faults",
         "network": "../example/IEEE14/Input/Network",
         "output": "../example/IEEE14/Output",
-        "output_input": "../example/IEEE14/Output/Input",
+        "output_temp": "../example/IEEE14/Output/Temp",
         "output_eeac": "../example/IEEE14/Output/EEAC",
-        "output_dynawo": "../example/IEEE14/Output/Dynawo"
+        "output_results": "../example/IEEE14/Output/Results"
     },
     "filenames": {
         "eeac_clusters_results": "critical_cluster_results.json",
