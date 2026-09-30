@@ -4,7 +4,7 @@ from lxml import etree
 from pathlib import Path
 from typing import List, Dict
 from demo.config import config
-from demo.utils import update_par_file, get_network_files
+from demo.utils import update_par_file, get_network_files, set_files_compliant
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,9 @@ def run_dynawo(network_dir: Path, faults_list2: List[str]) -> Dict:
     for fault_name in faults_list2:
 
         iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_name)
+
+        # Modify dyd and par files to be compliant with dynawo
+        set_files_compliant(dyd_file, par_file, jobs_file)
 
         # Calculate CCT
         logger.info(f"Calculating CCT for {network_name} - {fault_name}")

@@ -36,42 +36,113 @@ def get_fault_files() -> List[Path]:
     """Returns the list of fault files in FAULT_DIR."""
     return list(config.FAULTS_DIR.glob("*.json"))
 
+def parse_xml(xml_file: Path):
+    """Parse xml file."""
+    parser = etree.XMLParser(remove_blank_text=True)
+    tree = etree.parse(xml_file, parser)
+    root = tree.getroot()
+    return tree, root
+
+def set_files_compliant(dyd_file: Path, par_file: Path, jobs_file: Path) -> None:
+    """Modify dyd and par files to be compliant with dynawo."""
+    tree_dyd, root_dyd = parse_xml(dyd_file)
+    tree_par, root_par = parse_xml(par_file)
+    tree_jobs, root_jobs = parse_xml(jobs_file)
+
+    # get parId for network parameters
+    ns = root_jobs.nsmap.get(None)  # ns = "http://www.rte-france.com/dynawo"
+    network_par_id = root_jobs.xpath(f"//d:modeler/d:network/@parId", namespaces={"d": ns})[0]
+
+    for elem_dyd in root_dyd.iter():
+
+        # _value replacements
+        for attr, value in elem_dyd.attrib.items():
+            if "_value" in value:
+                if "omega_grp_" in value:
+                    elem_dyd.attrib[attr] = value.replace("_value", "")
+                elif "omegaRef_grp_" in value:
+                    elem_dyd.attrib[attr] = value.replace("_value", "")
+                elif "Qs_" in value and "generator" in elem_dyd.get("var2"):
+                    elem_dyd.attrib[attr] = value.replace("_value", "")
+
+        # add _hasShortCircuitCapabilities property to node fault
+        if elem_dyd.get("id1") == "NodeFault":
+            node_id = elem_dyd.get("var2")
+            for elem_par in root_par.iter():
+                if elem_par.get("id") == network_par_id:
+                    bus_name = node_id.split("_")[0]
+                    etree.SubElement(elem_par, "par", {
+                        "name": f"{bus_name}_hasShortCircuitCapabilities",
+                        "type": "BOOL",
+                        "value": "true"
+                    })
+
+        # add transformer_GPU and generator_thetaCheck properties to transformers
+        if elem_dyd.get("id") and elem_dyd.get("lib"):
+            if "_tfo" in elem_dyd.get("id") or "DM__" in elem_dyd.get("id"):
+                par_id = elem_dyd.get("parId")
+                for elem_par in root_par.iter():
+                    if elem_par.get("id") == par_id:
+                        etree.SubElement(elem_par, "par", {
+                            "type": "DOUBLE",
+                            "name": "transformer_GPu",
+                            "value": "0"
+                        })
+                        etree.SubElement(elem_par, "par", {
+                            "type": "BOOL",
+                            "name": "generator_thetaCheck",
+                            "value": "false"
+                        })
+            #add generator_thetaCheck properties to generators
+            elif "GeneratorSynchronous" in elem_dyd.get("lib") and "_tfo" not in elem_dyd.get("id"):
+                par_id = elem_dyd.get("parId")
+                for elem_par in root_par.iter():
+                    if elem_par.get("id") == par_id:
+                        etree.SubElement(elem_par, "par", {
+                            "type": "BOOL",
+                            "name": "generator_thetaCheck",
+                            "value": "true"
+                        })
+
+    tree_dyd.write(dyd_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
+    tree_par.write(par_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
+
 def modify_dyd_file(fault_type: str, fault_data: Dict, output_dir: Path, iidm_file: Path):
     """Modify .dyd file for a given fault."""
     file_name = iidm_file.stem
     dyd_file = output_dir / f"{file_name}.dyd"
-    parser = etree.XMLParser(remove_blank_text=True)
-    tree = etree.parse(str(dyd_file), parser)
-    root = tree.getroot()
+    tree, root = parse_xml(dyd_file)
     ns = root.nsmap.get("dyn")
+    def q_name(namespace, tag):
+        return f"{{{namespace}}}{tag}" if ns else tag
 
     if fault_type == "LineFault":
-        etree.SubElement(root, f"{{{ns}}}blackBoxModel", {
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
             "id": "LineFault",
             "lib": "LineFault",
             "parFile": f"{file_name}.par",
             "parId": "Fault",
             "staticId": fault_data["static_id"]
         })
-        etree.SubElement(root, f"{{{ns}}}blackBoxModel", {
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
             "id": "DisconnectLine",
             "lib": "EventSetPointBoolean",
             "parFile": f"{file_name}.par",
             "parId": "Disconnect"
         })
-        etree.SubElement(root, f"{{{ns}}}connect", {
+        etree.SubElement(root, q_name(ns, "connect"), {
             "id1": "DisconnectLine",
             "var1": "event_state1_value",
             "id2": "LineFault",
             "var2": "line_switchOffSignal1_value"
         })
-        etree.SubElement(root, f"{{{ns}}}connect", {
+        etree.SubElement(root, q_name(ns, "connect"), {
             "id1": "LineFault",
             "var1": "line_terminal1",
             "id2": "NETWORK",
             "var2": f"{fault_data['terminal_1']}_ACPIN"
         })
-        etree.SubElement(root, f"{{{ns}}}connect", {
+        etree.SubElement(root, q_name(ns, "connect"), {
             "id1": "LineFault",
             "var1": "line_terminal2",
             "id2": "NETWORK",
@@ -79,25 +150,25 @@ def modify_dyd_file(fault_type: str, fault_data: Dict, output_dir: Path, iidm_fi
         })
 
     elif fault_type == "TransformerFault":
-        etree.SubElement(root, f"{{{ns}}}blackBoxModel", {
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
             "id": "NodeFault",
             "lib": "NodeFault",
             "parFile": f"{file_name}.par",
             "parId": "Fault"
         })
-        etree.SubElement(root, f"{{{ns}}}blackBoxModel", {
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
             "id": "DisconnectTransformer",
             "lib": "EventQuadripoleDisconnection",
             "parFile": f"{file_name}.par",
             "parId": "Disconnect"
         })
-        etree.SubElement(root, f"{{{ns}}}connect", {
+        etree.SubElement(root, q_name(ns, "connect"), {
             "id1": "NodeFault",
             "var1": "fault_terminal",
             "id2": "NETWORK",
             "var2": f"{fault_data['terminal_1']}_ACPIN"
         })
-        etree.SubElement(root, f"{{{ns}}}connect", {
+        etree.SubElement(root, q_name(ns, "connect"), {
             "id1": "DisconnectTransformer",
             "var1": "event_state1_value",
             "id2": "NETWORK",
@@ -105,13 +176,13 @@ def modify_dyd_file(fault_type: str, fault_data: Dict, output_dir: Path, iidm_fi
         })
 
     elif fault_type == "NodeFault":
-        etree.SubElement(root, f"{{{ns}}}blackBoxModel", {
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
             "id": "NodeFault",
             "lib": "NodeFault",
             "parFile": f"{file_name}.par",
             "parId": "Fault"
         })
-        etree.SubElement(root, f"{{{ns}}}connect", {
+        etree.SubElement(root, q_name(ns, "connect"), {
             "id1": "NodeFault",
             "var1": "fault_terminal",
             "id2": "NETWORK",
@@ -125,9 +196,7 @@ def modify_par_file(fault_type: str, fault_data: Dict, output_dir: Path, iidm_fi
     """Create .par file for a giver fault."""
     file_name = iidm_file.stem
     par_file = output_dir / f"{file_name}.par"
-    parser = etree.XMLParser(remove_blank_text=True)
-    tree = etree.parse(str(par_file), parser)
-    root = tree.getroot()
+    tree, root = parse_xml(par_file)
 
     if fault_type == "LineFault":
         r, x, g, b = get_line_params(fault_data['static_id'], iidm_file)
@@ -269,9 +338,7 @@ def modify_par_file(fault_type: str, fault_data: Dict, output_dir: Path, iidm_fi
 
 def update_par_file(file_path: Path, value: float) -> None:
     """Update tEnd and tEvent in .par file."""
-    parser = etree.XMLParser(remove_blank_text=True)
-    tree = etree.parse(str(file_path), parser)
-    root = tree.getroot()
+    tree, root = parse_xml(file_path)
     t_fault = root.find(".//*[@name='fault_tEnd']")
     if t_fault is not None:
         t_fault.set("value", str(value))
