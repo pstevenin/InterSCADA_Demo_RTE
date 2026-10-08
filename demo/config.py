@@ -37,7 +37,7 @@ class Config:
         # Filenames
         self.OUTPUT_EEAC_FILE = filenames["eeac_clusters_results"]
         self.EEAC_PARAM_FILE = filenames["eeac_param"]
-        self.DYNAWO_ZIP_RESULTS = filenames["dynawo_zip_results"]
+        self.DYNAWO_EXE = filenames["dynawo_exe"]
 
         # Parameters
         self.PROTECTION_DELAY = params["protection_delay"]

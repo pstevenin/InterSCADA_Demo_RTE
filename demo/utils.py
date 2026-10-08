@@ -50,8 +50,11 @@ def set_files_compliant(dyd_file: Path, par_file: Path, jobs_file: Path) -> None
     tree_jobs, root_jobs = parse_xml(jobs_file)
 
     # get parId for network parameters
-    ns = root_jobs.nsmap.get(None)  # ns = "http://www.rte-france.com/dynawo"
-    network_par_id = root_jobs.xpath(f"//d:modeler/d:network/@parId", namespaces={"d": ns})[0]
+    ns = root_jobs.nsmap.get(None)
+    if ns:
+        network_par_id = root_jobs.xpath(f"//d:modeler/d:network/@parId", namespaces={"d": ns})[0]
+    else:
+        return None
 
     for elem_dyd in root_dyd.iter():
 

@@ -12,7 +12,7 @@
     "filenames": {
         "eeac_clusters_results": "critical_cluster_results.json",
         "eeac_param": "param_eeac.json",
-        "dynawo_zip_results": "dynawo.zip"
+        "dynawo_exe": "myEnvDynawo.sh"
     },
     "parameters": {
     	"protection_delay": 0.1,

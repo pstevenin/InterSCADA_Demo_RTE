@@ -61,7 +61,10 @@ def parse_eeac_results(network_dir: Path) -> Tuple[List[Tuple[str, float, str]],
                     result = json.load(f)
                     if result:
                         dict_result = next(iter(result.values()))
-                        cct = dict_result["CCT"]
+                        if "CCT" in dict_result:
+                            cct = dict_result["CCT"]
+                        else:
+                            cct = None
                         status = dict_result["status"]
                         if status == "ALWAYS STABLE":
                             l_stable.append((fault_dir.name, cct, dict_result["critical_cluster"]))

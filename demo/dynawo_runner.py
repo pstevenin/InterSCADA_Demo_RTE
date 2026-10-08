@@ -22,7 +22,7 @@ def compute_cct(par_file: Path, jobs_file: Path) -> float:
         m = l_bound + (h_bound - l_bound) / 2
         update_par_file(par_file, m)
         res = subprocess.run(
-            f"{config.DYNAWO_DIR}/myEnvDynawo.sh jobs {jobs_file}",
+            f"{config.DYNAWO_DIR}/{config.DYNAWO_EXE} jobs {jobs_file}",
             capture_output=True,
             shell=True
         ).returncode
@@ -34,7 +34,7 @@ def compute_cct(par_file: Path, jobs_file: Path) -> float:
     cct = round(l_bound + (h_bound - l_bound) / 2, 3)
     update_par_file(par_file, cct)
     res = subprocess.run(
-        f"{config.DYNAWO_DIR}/myEnvDynawo.sh jobs {jobs_file}",
+        f"{config.DYNAWO_DIR}/{config.DYNAWO_EXE} jobs {jobs_file}",
         capture_output=True,
         shell=True
     ).returncode
