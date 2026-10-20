@@ -47,11 +47,11 @@ def run_dynawo(network_dir: Path, faults_list2: List[str]) -> Dict:
     """Run dynawo for faults from list 2."""
     network_name = network_dir.name
     result_cct = {}
+
     for fault_name in faults_list2:
 
-        iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_name)
-
         # Modify dyd and par files to be compliant with dynawo
+        iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_name)
         set_files_compliant(dyd_file, par_file, jobs_file)
 
         # Calculate CCT

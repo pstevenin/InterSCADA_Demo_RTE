@@ -1,45 +1,22 @@
+import os
+from pathlib import Path
+#os.environ["GRAALVM_OPTIONS"] = f"-Dpowsybl.config.dirs={Path('../data').absolute()}"
+os.environ["GRAALVM_OPTIONS"] = f"-Dpowsybl.config.dirs={Path.cwd().parent / 'data'}"
+import shutil
 import sys
 import logging
 import json
-import shutil
 import time
-import os
 from datetime import datetime, timedelta
-from .config import config
-from .eeac_runner import run_eeac, parse_eeac_results
-from .dynawo_runner import run_dynawo
-from .utils import get_fault_files, modify_par_file, modify_dyd_file, get_network_files
-from pathlib import Path
-from typing import List
+from demo.config import config
+from demo.eeac_runner import run_eeac, parse_eeac_results
+from demo.dynawo_runner import run_dynawo
+from demo.utils import get_fault_files
+from demo.prepare_input import prepare_input
+#from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-def prepare_input(network_dir: Path, fault_files: List[Path]):
-    """Prepare input files."""
-    # Delete previous outputs
-    if os.path.isdir(config.OUTPUT_DIR):
-        shutil.rmtree(config.OUTPUT_DIR)
-    # Create input and output folders
-    config.OUTPUT_TEMP_DIR.mkdir(parents=True, exist_ok=True)
-    config.OUTPUT_EEAC_DIR.mkdir(parents=True, exist_ok=True)
-    config.OUTPUT_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    # Prepare files
-    iidm_file, dyd_file, jobs_file, par_file = get_network_files(network_dir)
-    for fault_file in fault_files:
-        fault_dir = config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
-        fault_dir.mkdir(parents=True, exist_ok=True)
-        # Copy files
-        shutil.copy(iidm_file, fault_dir)
-        shutil.copy(dyd_file, fault_dir)
-        shutil.copy(jobs_file, fault_dir)
-        shutil.copy(par_file, fault_dir)
-        # Modify files regarding fault
-        with open(fault_file) as f:
-            fault_data = json.load(f)
-        modify_dyd_file(fault_data["fault_type"], fault_data, fault_dir, iidm_file)
-        modify_par_file(fault_data["fault_type"], fault_data, fault_dir, iidm_file)
 
 def process_network(network_dir: Path) -> None:
     """Process EEAC + dynawo-algorithms."""
@@ -76,6 +53,9 @@ def process_network(network_dir: Path) -> None:
 def demo(args=None):
     """ Main program: run process every 30 minutes."""
 
+    # Delete previous outputs
+    if os.path.isdir(config.OUTPUT_DIR):
+        shutil.rmtree(config.OUTPUT_DIR)
     # Folder list
     network_dirs = []
     for d in config.NETWORK_DIR.iterdir():

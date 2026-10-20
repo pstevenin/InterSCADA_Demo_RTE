@@ -38,6 +38,7 @@ class Config:
         self.OUTPUT_EEAC_FILE = filenames["eeac_clusters_results"]
         self.EEAC_PARAM_FILE = filenames["eeac_param"]
         self.DYNAWO_EXE = filenames["dynawo_exe"]
+        self.NETWORK_FILE_TYPE = filenames["network_file_type"]
 
         # Parameters
         self.PROTECTION_DELAY = params["protection_delay"]
