@@ -9,7 +9,7 @@ import time
 import pandas as pd
 from typing import List
 from demo.config import config
-from demo.utils import get_network_files, modify_par_file, modify_dyd_file
+from demo.utils import get_network_files, modify_file
 import pypowsybl as pp
 from lxml import etree
 from copy import deepcopy
@@ -160,11 +160,11 @@ def prepare_input(network_dir: Path, fault_files: List[Path]) -> None:
             # Modify files regarding fault
             with open(fault_file) as f:
                 fault_data = json.load(f)
-            modify_dyd_file(fault_data["fault_type"], fault_data, dyd_file, par_file)
-            modify_par_file(fault_data["fault_type"], fault_data, iidm_file, par_file)
+            #modify_dyd_file(fault_data["fault_type"], fault_data, dyd_file, par_file)
+            #modify_par_file(fault_data["fault_type"], fault_data, iidm_file, par_file)
     else:
-        arc_file = next(network_dir.glob("*.arc"), None)
-        launch_first_dynawo(arc_file)
+        #arc_file = next(network_dir.glob("*.arc"), None)
+        #launch_first_dynawo(arc_file)
         for fault_file in fault_files:
             fault_dir = config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
             fault_dir.mkdir(parents=True, exist_ok=True)
@@ -174,5 +174,4 @@ def prepare_input(network_dir: Path, fault_files: List[Path]) -> None:
             with open(fault_file) as f:
                 fault_data = json.load(f)
             iidm_file, dyd_file, jobs_file, par_file = get_network_files(fault_dir)
-            modify_dyd_file(fault_data["fault_type"], fault_data, dyd_file, par_file)
-            modify_par_file(fault_data["fault_type"], fault_data, iidm_file, par_file)
+            modify_file(fault_data, iidm_file, dyd_file, par_file)
