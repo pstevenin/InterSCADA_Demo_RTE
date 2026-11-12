@@ -16,8 +16,8 @@
         "network_file_type": "iidm"
     },
     "parameters": {
-    	"protection_delay": 0.1,
-    	"delta": 0.1,
+    	"protection_delay": 0.3,
+    	"delta": 0.3,
         "base_power": 100,
         "time_lap": 0.1,
         "low_bound": 0.1,

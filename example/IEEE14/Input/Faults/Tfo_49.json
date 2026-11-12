@@ -1,5 +1,5 @@
 {
-    "fault_type": "TransformerFault",
+    "fault_type": "Transformer",
     "static_id": "_BUS____4-BUS____9-1_PT",
     "terminal_1": "_BUS____4_TN",
     "terminal_2": "_BUS____9_TN",

@@ -1,15 +1,17 @@
 import logging
 import subprocess
+import json
 from lxml import etree
 from pathlib import Path
 from typing import List, Dict
 from demo.config import config
-from demo.utils import update_par_file, get_network_files, set_files_compliant
+from demo.utils import update_par_file, get_network_files, set_files_compliant, get_fault_files
 
 logger = logging.getLogger(__name__)
 
 def compute_cct(par_file: Path, jobs_file: Path) -> float:
     """Calculate CCT using dichotomy."""
+
     parser = etree.XMLParser(remove_blank_text=True)
     tree = etree.parse(str(par_file), parser)
     root = tree.getroot()
@@ -28,8 +30,10 @@ def compute_cct(par_file: Path, jobs_file: Path) -> float:
         ).returncode
         if res == 0:
             l_bound = m
+            logger.info(f"Simulation succeed for m = {m}")
         elif res == 1:
             h_bound = m
+            logger.info(f"Simulation failed for m = {m}")
 
     cct = round(l_bound + (h_bound - l_bound) / 2, 3)
     update_par_file(par_file, cct)
@@ -45,33 +49,40 @@ def compute_cct(par_file: Path, jobs_file: Path) -> float:
 
 def run_dynawo(network_dir: Path, faults_list2: List[str]) -> Dict:
     """Run dynawo for faults from list 2."""
+
     network_name = network_dir.name
     result_cct = {}
+    fault_files = get_fault_files()
 
-    for fault_name in faults_list2:
+    for fault_file in fault_files:
 
-        # Modify dyd and par files to be compliant with dynawo
-        iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_name)
-        set_files_compliant(dyd_file, par_file, jobs_file)
+        if fault_file.stem in faults_list2:
 
-        # Calculate CCT
-        logger.info(f"Calculating CCT for {network_name} - {fault_name}")
-        cct = compute_cct(par_file, jobs_file)
+            with open(fault_file) as f:
+                fault_data = json.load(f)
 
-        if cct < config.PROTECTION_DELAY:
-            status = "NOK"
-            margin = "None"
-        elif cct < config.PROTECTION_DELAY + config.DELTA:
-            status = "LOW_MARGIN"
-            margin = cct - config.PROTECTION_DELAY
-        else:
-            status = "OK"
-            margin = "None"
+            # Modify files to be compliant with dynawo
+            iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem)
+            set_files_compliant(fault_data, iidm_file, dyd_file, par_file, jobs_file)
 
-        result_cct[fault_name] = {
-            "status": status,
-            "margin": margin,
-            "CCT": cct
-        }
+            # Calculate CCT
+            logger.info(f"Calculating CCT for {network_name} - {fault_data['static_id']}")
+            cct = compute_cct(par_file, jobs_file)
+
+            if cct < config.PROTECTION_DELAY:
+                status = "NOK"
+                margin = "None"
+            elif cct < config.PROTECTION_DELAY + config.DELTA:
+                status = "LOW_MARGIN"
+                margin = cct - config.PROTECTION_DELAY
+            else:
+                status = "OK"
+                margin = "None"
+
+            result_cct[fault_data['static_id']] = {
+                "status": status,
+                "margin": margin,
+                "CCT": cct
+            }
 
     return result_cct

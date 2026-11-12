@@ -1,5 +1,5 @@
 {
-    "fault_type": "LineFault",
+    "fault_type": "Line",
     "static_id": "_BUS____1-BUS____2-1_AC",
     "terminal_1": "_BUS____1_TN",
     "terminal_2": "_BUS____2_TN",
