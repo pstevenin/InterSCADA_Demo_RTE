@@ -59,11 +59,7 @@ def node_fault_dynawo(dyd_file: Path, par_file: Path, jobs_file: Path):
     tree_jobs, root_jobs = parse_xml(jobs_file)
 
     # get parId for network parameters
-    ns = root_jobs.nsmap.get("dyn")
-    if ns:
-        network_par_id = root_jobs.xpath(f"//d:modeler/d:network/@parId", namespaces={"d": ns})[0]
-    else:
-        return None
+    network_par_id = root_jobs.xpath("//*[local-name()='modeler']/*[local-name()='network']/@parId")[0]
 
     for elem_dyd in root_dyd.iter():
 
@@ -104,34 +100,60 @@ def line_fault_dynawo(fault_data: Dict, iidm_file: Path, dyd_file: Path, par_fil
 
     # create fictive substation
     network.create_substations(id=f"FictSub_{line_id}")
-    network.create_voltage_levels(id=f"FictVL_{line_id}",
-                                  substation_id=f"FictSub_{line_id}",
-                                  topology_kind='NODE_BREAKER',
-                                  nominal_v=vl.loc[lines.loc[line_id]["voltage_level1_id"]]['nominal_v'])
-    network.create_busbar_sections(id=f"FictBus_{line_id}",
-                                   voltage_level_id=f"FictVL_{line_id}",
-                                   node=0)
 
-    # get nodes number of line
-    node_topo_1 = network.get_node_breaker_topology(lines.loc[line_id]["voltage_level1_id"])
-    node_line_id_1 = node_topo_1.nodes.loc[node_topo_1.nodes['connectable_id']==line_id].index[0]
-    node_topo_2 = network.get_node_breaker_topology(lines.loc[line_id]["voltage_level2_id"])
-    node_line_id_2 = node_topo_2.nodes.loc[node_topo_2.nodes['connectable_id'] == line_id].index[0]
+    # bus-breaker mode
+    if vl.iloc[0,6]=="BUS_BREAKER":
+        network.create_voltage_levels(id=f"FictVL_{line_id}",
+                                      substation_id=f"FictSub_{line_id}",
+                                      topology_kind='BUS_BREAKER',
+                                      nominal_v=vl.loc[lines.loc[line_id]["voltage_level1_id"]]['nominal_v'])
+        network.create_buses(id=f"FictBus_{line_id}",
+                             voltage_level_id=f"FictVL_{line_id}")
+        # remove current line and create new ones connecting fictive substation to network
+        bus_1 = network.get_bus_breaker_topology(lines.loc[line_id]["voltage_level1_id"]).elements.loc[line_id,"bus_id"]
+        bus_2 = network.get_bus_breaker_topology(lines.loc[line_id]["voltage_level2_id"]).elements.loc[line_id,"bus_id"]
+        network.create_lines(id=line_id + '_0',
+                             voltage_level1_id=lines.loc[line_id]["voltage_level1_id"],
+                             bus1_id=bus_1,
+                             voltage_level2_id=f"FictVL_{line_id}",
+                             bus2_id=f"FictBus_{line_id}",
+                             b1=b1, b2=b2, g1=g1, g2=g2, r=r * distance, x=x * distance)
+        network.create_lines(id=line_id + '_1',
+                             voltage_level1_id=f"FictVL_{line_id}",
+                             bus1_id=f"FictBus_{line_id}",
+                             voltage_level2_id=lines.loc[line_id]["voltage_level2_id"],
+                             bus2_id=bus_2,
+                             b1=b1, b2=b2, g1=g1, g2=g2, r=r * (1 - distance), x=x * (1 - distance))
+        network.remove_elements(line_id)
 
-    # remove current line and create new ones connecting fictive substation to network
-    network.remove_elements(line_id)
-    network.create_lines(id=line_id + '_0',
-                         voltage_level1_id=lines.loc[line_id]["voltage_level1_id"],
-                         node1=node_line_id_1,
-                         voltage_level2_id=f"FictVL_{line_id}",
-                         node2=1,
-                         b1=b1, b2=b2, g1=g1, g2=g2, r=r * distance, x=x * distance)
-    network.create_lines(id=line_id + '_1',
-                         voltage_level1_id=f"FictVL_{line_id}",
-                         node1=2,
-                         voltage_level2_id=lines.loc[line_id]["voltage_level2_id"],
-                         node2=node_line_id_2,
-                         b1=b1, b2=b2, g1=g1, g2=g2, r=r * (1 - distance), x=x * (1 - distance))
+    # node-breaker mode
+    else:
+        network.create_voltage_levels(id=f"FictVL_{line_id}",
+                                      substation_id=f"FictSub_{line_id}",
+                                      topology_kind='NODE_BREAKER',
+                                      nominal_v=vl.loc[lines.loc[line_id]["voltage_level1_id"]]['nominal_v'])
+        network.create_busbar_sections(id=f"FictBus_{line_id}",
+                                       voltage_level_id=f"FictVL_{line_id}",
+                                       node=0)
+        # get nodes number of line
+        node_topo_1 = network.get_node_breaker_topology(lines.loc[line_id]["voltage_level1_id"])
+        node_line_id_1 = node_topo_1.nodes.loc[node_topo_1.nodes['connectable_id']==line_id].index[0]
+        node_topo_2 = network.get_node_breaker_topology(lines.loc[line_id]["voltage_level2_id"])
+        node_line_id_2 = node_topo_2.nodes.loc[node_topo_2.nodes['connectable_id'] == line_id].index[0]
+        # remove current line and create new ones connecting fictive substation to network
+        network.remove_elements(line_id)
+        network.create_lines(id=line_id + '_0',
+                             voltage_level1_id=lines.loc[line_id]["voltage_level1_id"],
+                             node1=node_line_id_1,
+                             voltage_level2_id=f"FictVL_{line_id}",
+                             node2=1,
+                             b1=b1, b2=b2, g1=g1, g2=g2, r=r * distance, x=x * distance)
+        network.create_lines(id=line_id + '_1',
+                             voltage_level1_id=f"FictVL_{line_id}",
+                             node1=2,
+                             voltage_level2_id=lines.loc[line_id]["voltage_level2_id"],
+                             node2=node_line_id_2,
+                             b1=b1, b2=b2, g1=g1, g2=g2, r=r * (1 - distance), x=x * (1 - distance))
 
     # save and replace .iidm file
     network.save(iidm_file, format="XIIDM", parameters=dict([("iidm.export.xml.version", "1.5")]))
