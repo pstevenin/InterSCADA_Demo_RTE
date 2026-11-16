@@ -1,9 +1,9 @@
-import logging
 import json
-from demo.config import config
-from demo.utils import get_network_files, get_fault_files
+import logging
 from pathlib import Path
 from typing import List, Tuple
+from demo.config import config
+from demo.utils import get_network_files, get_fault_files
 
 # Import EEAC from wheel
 from deeac.main import deeac_dynawo
@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 def run_eeac(network_dir: Path) -> None:
     """Run EEAC."""
+
     network_name = network_dir.name
     temp_output_dir = config.OUTPUT_EEAC_DIR / network_name
     temp_output_dir.mkdir(parents=True, exist_ok=True)
@@ -48,6 +49,7 @@ def run_eeac(network_dir: Path) -> None:
 
 def parse_eeac_results(network_dir: Path) -> Tuple[List[Tuple[str, float, str]], List[str]]:
     """Parse EEAC results and returns fault lists."""
+
     network_name = network_dir.name
     temp_output_dir = config.OUTPUT_EEAC_DIR / network_name
     l_stable = []

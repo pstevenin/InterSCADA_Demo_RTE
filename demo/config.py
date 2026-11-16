@@ -1,5 +1,5 @@
-import json
 import argparse
+import json
 from pathlib import Path
 
 # Get config file
@@ -16,7 +16,9 @@ BASE_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / args.config
 
 class Config:
+
     def __init__(self, config_path: Path = CONFIG_FILE):
+
         with open(config_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 

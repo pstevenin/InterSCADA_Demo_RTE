@@ -1,26 +1,61 @@
-import os
-from pathlib import Path
-os.environ["GRAALVM_OPTIONS"] = f"-Dpowsybl.config.dirs={Path.cwd().parent / 'data'}"
-import re
+#import os
+#from pathlib import Path
+#os.environ["GRAALVM_OPTIONS"] = f"-Dpowsybl.config.dirs={Path.cwd().parent / 'data'}"
 import json
 import logging
+import pandas as pd
+import pypowsybl as pp
+import re
 import shutil
 import time
-import pandas as pd
-from typing import List
-from demo.config import config
-from demo.utils import get_network_files, dyd_eeac, par_eeac
-import pypowsybl as pp
-from lxml import etree
 from copy import deepcopy
+from lxml import etree
+from pathlib import Path
+from typing import List, Dict
+from demo.config import config
+from demo.utils import get_network_files, parse_xml
 
 logger = logging.getLogger(__name__)
 
-def inner(text, open_text, close):
-    """Content between <parametersSet ...> and </parametersSet>."""
-    m_open = open_text.search(text)
-    m_close = close.search(text)
-    return text[m_open.end():m_close.start()].strip("\r\n")
+def prepare_input(network_dir: Path, fault_files: List[Path]) -> None:
+    """Prepare input files."""
+
+    # Create input and output folders
+    config.OUTPUT_TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    config.OUTPUT_EEAC_DIR.mkdir(parents=True, exist_ok=True)
+    config.OUTPUT_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Prepare files
+    if config.NETWORK_FILE_TYPE == "iidm":
+        for fault_file in fault_files:
+            iidm_file, dyd_file, jobs_file, par_file = get_network_files(network_dir)
+            fault_dir = config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
+            fault_dir.mkdir(parents=True, exist_ok=True)
+            # Copy files
+            shutil.copy(iidm_file, fault_dir)
+            shutil.copy(dyd_file, fault_dir)
+            shutil.copy(jobs_file, fault_dir)
+            shutil.copy(par_file, fault_dir)
+            # Modify files regarding fault
+            with open(fault_file) as f:
+                fault_data = json.load(f)
+            iidm_file, dyd_file, jobs_file, par_file = get_network_files(fault_dir)
+            dyd_eeac(fault_data, dyd_file, par_file)
+            par_eeac(fault_data, iidm_file, par_file)
+    else:
+        arc_file = next(network_dir.glob("*.arc"), None)
+        launch_first_dynawo(arc_file)
+        for fault_file in fault_files:
+            fault_dir = config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
+            fault_dir.mkdir(parents=True, exist_ok=True)
+            copy_dynawo_files(fault_file, network_dir)
+            single_par_file(fault_file, network_dir)
+            # Modify files regarding fault
+            with open(fault_file) as f:
+                fault_data = json.load(f)
+            iidm_file, dyd_file, jobs_file, par_file = get_network_files(fault_dir)
+            dyd_eeac(fault_data, dyd_file, par_file)
+            par_eeac(fault_data, iidm_file, par_file)
 
 def launch_first_dynawo(arc_file):
     """Launch dynawo simulation without faults to get based on arcade file"""
@@ -85,6 +120,7 @@ def launch_first_dynawo(arc_file):
 
 def copy_dynawo_files(fault_file, network_dir):
     """ Copy all dynawo files in temp output folder"""
+
     candidates = sorted(Path("/tmp/dynawo/").glob("dynawo*"), key=lambda p: p.stat().st_mtime)
     src = candidates[-1]
     for file in src.glob("*.par"):
@@ -95,11 +131,10 @@ def copy_dynawo_files(fault_file, network_dir):
 
 def single_par_file(fault_file, network_dir):
     """ All par files in models.par file. EEAC does not work with several par files"""
+
     work = config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
     target_file = "models.par"
-    #source_files = ["solvers.par"]
     source_files = [p.name for p in work.glob("*.par") if p.name not in (target_file, "network.par")]
-    #source_files += other_source
 
     # Fusion in models.par
     parser = etree.XMLParser(remove_blank_text=False, remove_comments=False, strip_cdata=False)
@@ -137,42 +172,259 @@ def single_par_file(fault_file, network_dir):
         if p.name != target_file:
             p.unlink()
 
-def prepare_input(network_dir: Path, fault_files: List[Path]) -> None:
-    """Prepare input files."""
+def dyd_eeac(fault_data: Dict, dyd_file: Path, par_file: Path):
+    """Modify .dyd file for a given fault to launch EEAC."""
 
-    # Create input and output folders
-    config.OUTPUT_TEMP_DIR.mkdir(parents=True, exist_ok=True)
-    config.OUTPUT_EEAC_DIR.mkdir(parents=True, exist_ok=True)
-    config.OUTPUT_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    # parse .dyd files
+    file_name = par_file.name
+    tree, root = parse_xml(dyd_file)
+    ns = root.nsmap.get("dyn")
 
-    # Prepare files
-    if config.NETWORK_FILE_TYPE == "iidm":
-        for fault_file in fault_files:
-            iidm_file, dyd_file, jobs_file, par_file = get_network_files(network_dir)
-            fault_dir = config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
-            fault_dir.mkdir(parents=True, exist_ok=True)
-            # Copy files
-            shutil.copy(iidm_file, fault_dir)
-            shutil.copy(dyd_file, fault_dir)
-            shutil.copy(jobs_file, fault_dir)
-            shutil.copy(par_file, fault_dir)
-            # Modify files regarding fault
-            with open(fault_file) as f:
-                fault_data = json.load(f)
-            iidm_file, dyd_file, jobs_file, par_file = get_network_files(fault_dir)
-            dyd_eeac(fault_data, dyd_file, par_file)
-            par_eeac(fault_data, iidm_file, par_file)
-    else:
-        arc_file = next(network_dir.glob("*.arc"), None)
-        launch_first_dynawo(arc_file)
-        for fault_file in fault_files:
-            fault_dir = config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
-            fault_dir.mkdir(parents=True, exist_ok=True)
-            copy_dynawo_files(fault_file, network_dir)
-            single_par_file(fault_file, network_dir)
-            # Modify files regarding fault
-            with open(fault_file) as f:
-                fault_data = json.load(f)
-            iidm_file, dyd_file, jobs_file, par_file = get_network_files(fault_dir)
-            dyd_eeac(fault_data, dyd_file, par_file)
-            par_eeac(fault_data, iidm_file, par_file)
+    def q_name(namespace, tag):
+        return f"{{{namespace}}}{tag}" if ns else tag
+
+    if fault_data["fault_type"] == "Line":
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
+            "id": "LineFault",
+            "lib": "LineFault",
+            "parFile": f"{file_name}",
+            "parId": "Fault",
+            "staticId": fault_data["static_id"]
+        })
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
+            "id": "DisconnectLine",
+            "lib": "EventSetPointBoolean",
+            "parFile": f"{file_name}",
+            "parId": "Disconnect"
+        })
+        etree.SubElement(root, q_name(ns, "connect"), {
+            "id1": "DisconnectLine",
+            "var1": "event_state1_value",
+            "id2": "LineFault",
+            "var2": "line_switchOffSignal1_value"
+        })
+        etree.SubElement(root, q_name(ns, "connect"), {
+            "id1": "LineFault",
+            "var1": "line_terminal1",
+            "id2": "NETWORK",
+            "var2": f"{fault_data['terminal_1']}_ACPIN"
+        })
+        etree.SubElement(root, q_name(ns, "connect"), {
+            "id1": "LineFault",
+            "var1": "line_terminal2",
+            "id2": "NETWORK",
+            "var2": f"{fault_data['terminal_2']}_ACPIN"
+        })
+
+    elif fault_data["fault_type"] == "Transformer":
+
+        # node fault in primary bus
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
+            "id": "NodeFault",
+            "lib": "NodeFault",
+            "parFile": f"{file_name}",
+            "parId": "Fault"
+        })
+        etree.SubElement(root, q_name(ns, "connect"), {
+            "id1": "NodeFault",
+            "var1": "fault_terminal",
+            "id2": "NETWORK",
+            "var2": f"{fault_data['terminal_1']}_ACPIN"
+        })
+
+        # transformer disconnect
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
+            "id": "DisconnectTransformer",
+            "lib": "EventQuadripoleDisconnection",
+            "parFile": f"{file_name}",
+            "parId": "Disconnect"
+        })
+        etree.SubElement(root, q_name(ns, "connect"), {
+            "id1": "DisconnectTransformer",
+            "var1": "event_state1_value",
+            "id2": "NETWORK",
+            "var2": f"{fault_data['static_id']}_state_value"
+        })
+
+    elif fault_data["fault_type"] == "Node":
+
+        etree.SubElement(root, q_name(ns, "blackBoxModel"), {
+            "id": "NodeFault",
+            "lib": "NodeFault",
+            "parFile": f"{file_name}",
+            "parId": "Fault"
+        })
+        etree.SubElement(root, q_name(ns, "connect"), {
+            "id1": "NodeFault",
+            "var1": "fault_terminal",
+            "id2": "NETWORK",
+            "var2": f"{fault_data['terminal']}_ACPIN"
+        })
+
+    etree.indent(root, space="  ")
+    tree.write(str(dyd_file), encoding="UTF-8", xml_declaration=True, pretty_print=True)
+
+def par_eeac(fault_data: Dict, iidm_file: Path, par_file: Path):
+    """Create .par file for a giver fault."""
+
+    tree, root = parse_xml(par_file)
+
+    if fault_data["fault_type"] == "Line":
+        r, x, g, b = get_line_params(fault_data['static_id'], iidm_file)
+
+        disconnect_set = etree.SubElement(root, "set", {"id": "Disconnect"})
+        etree.SubElement(disconnect_set, "par", {
+            "type": "DOUBLE",
+            "name": "event_tEvent",
+            "value": str(fault_data["t_disconnect"])
+        })
+        etree.SubElement(disconnect_set, "par", {
+            "type": "BOOL",
+            "name": "event_stateEvent1",
+            "value": "true"
+        })
+        etree.SubElement(disconnect_set, "par", {
+            "type": "BOOL",
+            "name": "event_disconnectExtremity",
+            "value": "true"
+        })
+
+        fault_set = etree.SubElement(root, "set", {"id": "Fault"})
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "line_RPu",
+            "value": str(r)
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "line_XPu",
+            "value": str(x)
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "line_GPu",
+            "value": str(g)
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "line_BPu",
+            "value": str(b)
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "line_RFaultPu",
+            "value": str(fault_data["r_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "line_XFaultPu",
+            "value": str(fault_data["x_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "line_tBegin",
+            "value": str(fault_data["t_begin_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "line_tEnd",
+            "value": str(fault_data["t_end_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "line_D",
+            "value": str(fault_data["d_terminal_1"])
+        })
+
+    elif fault_data["fault_type"] == "Transformer":
+
+        # disconnect parameters
+        disconnect_set = etree.SubElement(root, "set", {"id": "Disconnect"})
+        etree.SubElement(disconnect_set, "par", {
+            "type": "DOUBLE",
+            "name": "event_tEvent",
+            "value": str(fault_data["t_disconnect"])
+        })
+        etree.SubElement(disconnect_set, "par", {
+            "type": "BOOL",
+            "name": "event_stateEvent1",
+            "value": "true"
+        })
+        etree.SubElement(disconnect_set, "par", {
+            "type": "BOOL",
+            "name": "event_disconnectExtremity",
+            "value": "true"
+        })
+        etree.SubElement(disconnect_set, "par", {
+            "type": "BOOL",
+            "name": "event_disconnectOrigin",
+            "value": "true"
+        })
+
+        # fault parameters
+        fault_set = etree.SubElement(root, "set", {"id": "Fault"})
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "fault_RPu",
+            "value": str(fault_data["r_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "fault_XPu",
+            "value": str(fault_data["x_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "fault_tBegin",
+            "value": str(fault_data["t_begin_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "fault_tEnd",
+            "value": str(fault_data["t_end_fault"])
+        })
+
+    elif fault_data["fault_type"] == "Node":
+
+        # fault parameters
+        fault_set = etree.SubElement(root, "set", {"id": "Fault"})
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "fault_RPu",
+            "value": str(fault_data["r_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "fault_XPu",
+            "value": str(fault_data["x_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "fault_tBegin",
+            "value": str(fault_data["t_begin_fault"])
+        })
+        etree.SubElement(fault_set, "par", {
+            "type": "DOUBLE",
+            "name": "fault_tEnd",
+            "value": str(fault_data["t_end_fault"])
+        })
+
+    etree.indent(root, space="  ")
+    tree.write(str(par_file), encoding="UTF-8", xml_declaration=True, pretty_print=True)
+
+def get_line_params(static_id, iidm_file):
+    """Extract R, X, G, B parameters from .iidm file."""
+
+    ps_grid = pp.network.load(iidm_file)
+    buses = ps_grid.get_buses(all_attributes=True)
+    lines = ps_grid.get_lines(all_attributes=True)
+    for i, row in lines.iterrows():
+        if i==static_id:
+            bus1 = buses.v_mag[row.bus1_id]
+            bus2 = buses.v_mag[row.bus2_id]
+            base_impedance: float = bus1 * bus2 / config.BASE_POWER
+            r = row.r / base_impedance
+            x = row.x / base_impedance
+            g = row.g1 / base_impedance
+            b = row.b1 / base_impedance
+            return r, x, g, b
