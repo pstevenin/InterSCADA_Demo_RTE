@@ -50,6 +50,32 @@ def set_files_compliant(fault_data, iidm_file: Path, dyd_file: Path, par_file: P
         line_fault_dynawo(fault_data, iidm_file, dyd_file, par_file)
 
     node_fault_dynawo(dyd_file, par_file, jobs_file)
+    init_correction(dyd_file, par_file)
+
+def init_correction(dyd_file: Path, par_file: Path):
+    """Dynawo initialization correction for VRSemipol2 models"""
+
+    tree_dyd, root_dyd = parse_xml(dyd_file)
+    tree_par, root_par = parse_xml(par_file)
+
+    for elem_dyd in root_dyd.iter():
+
+        # generator_iStart0Pu_re = 1 for GeneratorSynchronousFourWindingsGoverGt1VRSemipol2 generators
+        if elem_dyd.get("lib") == "GeneratorSynchronousFourWindingsGoverGt1VRSemipol2":
+            par_id = elem_dyd.get("parId")
+            for elem_par in root_par.iter():
+                if elem_par.get("id") == par_id:
+                    already_exists = any(p.get("name") == "generator_iStart0Pu_re" for p in elem_par)
+                    if not already_exists:
+                        etree.SubElement(elem_par, "par", {
+                            "name": "generator_iStart0Pu_re",
+                            "type": "DOUBLE",
+                            "value": "1."
+                        })
+
+    # write files
+    tree_dyd.write(dyd_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
+    tree_par.write(par_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
 
 def node_fault_dynawo(dyd_file: Path, par_file: Path, jobs_file: Path):
     """input files modifications for node fault"""
