@@ -11,11 +11,12 @@ import time
 from copy import deepcopy
 from lxml import etree
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any
 from demo.config import config
 from demo.utils import get_network_files, parse_xml
 
 logger = logging.getLogger(__name__)
+
 
 def prepare_input(network_dir: Path, fault_files: List[Path]) -> None:
     """Prepare input files."""
@@ -57,7 +58,8 @@ def prepare_input(network_dir: Path, fault_files: List[Path]) -> None:
             dyd_eeac(fault_data, dyd_file, par_file)
             par_eeac(fault_data, iidm_file, par_file)
 
-def launch_first_dynawo(arc_file):
+
+def launch_first_dynawo(arc_file) -> None:
     """Launch dynawo simulation without faults to get based on arcade file"""
 
     # Load network and perform load flow
@@ -118,7 +120,8 @@ def launch_first_dynawo(arc_file):
     logger.info(results.status_text())
     logger.info(f"Simulation ends in {time.time() - start:.1f} seconds")
 
-def copy_dynawo_files(fault_file, network_dir):
+
+def copy_dynawo_files(fault_file, network_dir) -> None:
     """ Copy all dynawo files in temp output folder"""
 
     candidates = sorted(Path("/tmp/dynawo/").glob("dynawo*"), key=lambda p: p.stat().st_mtime)
@@ -129,7 +132,8 @@ def copy_dynawo_files(fault_file, network_dir):
     shutil.copy(src / "powsybl_dynawo.jobs", config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem)
     shutil.copy(src / "powsybl_dynawo.xiidm", config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem)
 
-def single_par_file(fault_file, network_dir):
+
+def single_par_file(fault_file, network_dir) -> None:
     """ All par files in models.par file. EEAC does not work with several par files"""
 
     work = config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
@@ -172,7 +176,8 @@ def single_par_file(fault_file, network_dir):
         if p.name != target_file:
             p.unlink()
 
-def dyd_eeac(fault_data: Dict, dyd_file: Path, par_file: Path):
+
+def dyd_eeac(fault_data: Dict, dyd_file: Path, par_file: Path) -> None:
     """Modify .dyd file for a given fault to launch EEAC."""
 
     # parse .dyd files
@@ -264,7 +269,8 @@ def dyd_eeac(fault_data: Dict, dyd_file: Path, par_file: Path):
     etree.indent(root, space="  ")
     tree.write(str(dyd_file), encoding="UTF-8", xml_declaration=True, pretty_print=True)
 
-def par_eeac(fault_data: Dict, iidm_file: Path, par_file: Path):
+
+def par_eeac(fault_data: Dict, iidm_file: Path, par_file: Path) -> None:
     """Create .par file for a giver fault."""
 
     tree, root = parse_xml(par_file)
@@ -412,7 +418,8 @@ def par_eeac(fault_data: Dict, iidm_file: Path, par_file: Path):
     etree.indent(root, space="  ")
     tree.write(str(par_file), encoding="UTF-8", xml_declaration=True, pretty_print=True)
 
-def get_line_params(static_id, iidm_file):
+
+def get_line_params(static_id, iidm_file) -> tuple[float | Any, float | Any, float | Any, float | Any] | None:
     """Extract R, X, G, B parameters from .iidm file."""
 
     ps_grid = pp.network.load(iidm_file)

@@ -11,6 +11,7 @@ from deeac.IO.arguments_parser import DynawoRunConfiguration
 
 logger = logging.getLogger(__name__)
 
+
 def run_eeac(network_dir: Path) -> None:
     """Run EEAC."""
 
@@ -46,6 +47,7 @@ def run_eeac(network_dir: Path) -> None:
             warn=False,
         )
         deeac_dynawo(config_dynawo)
+
 
 def parse_eeac_results(network_dir: Path) -> Tuple[List[Tuple[str, float, str]], List[str]]:
     """Parse EEAC results and returns fault lists."""

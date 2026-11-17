@@ -17,7 +17,8 @@ from demo.prepare_input import prepare_input
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def demo(args=None):
+
+def demo(args=None) -> None:
     """ Main program: run process every 30 minutes."""
 
     # Delete previous outputs
@@ -37,6 +38,7 @@ def demo(args=None):
             next_run = now + timedelta(minutes=config.TIME_LAP)
             logger.info(f"Next run scheduled at {next_run}")
             time.sleep(config.TIME_LAP * 60)
+
 
 def process_network(network_dir: Path) -> None:
     """Process EEAC + dynawo-algorithms."""
@@ -58,7 +60,7 @@ def process_network(network_dir: Path) -> None:
     result_eeac = {}
     if list1:
         for fault_name, cct, cluster in list1:
-            result_eeac[fault_name] = {"status": "OK", "margin": "None", "CCT": cct}
+            result_eeac[fault_name] = {"status": "OK", "margin": "None", "CCT": cct, "critical_generator": cluster}
 
     # Step 3: Run dynawo for list 2
     result_dynawo = {}

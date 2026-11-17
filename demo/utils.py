@@ -3,10 +3,12 @@ from pathlib import Path
 from typing import Tuple, List
 from demo.config import config
 
+
 def get_fault_files() -> List[Path]:
     """Returns the list of fault files in FAULT_DIR."""
 
     return list(config.FAULTS_DIR.glob("*.json"))
+
 
 def get_network_files(network_dir: Path) -> Tuple[Path, Path, Path, Path]:
     """Returns file paths .iidm, .dyd, .jobs and .par in a folder."""
@@ -21,7 +23,8 @@ def get_network_files(network_dir: Path) -> Tuple[Path, Path, Path, Path]:
 
     return iidm_file, dyd_file, jobs_file, par_file
 
-def parse_xml(xml_file: Path):
+
+def parse_xml(xml_file: Path) -> tuple[etree, etree]:
     """Parse xml file."""
 
     parser = etree.XMLParser(remove_blank_text=True)

@@ -1,14 +1,16 @@
 import json
 import logging
 import pypowsybl as pp
+import re
 import subprocess
 from lxml import etree
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any
 from demo.config import config
 from demo.utils import get_network_files, parse_xml, get_fault_files
 
 logger = logging.getLogger(__name__)
+
 
 def run_dynawo(network_dir: Path, faults_list2: List[str]) -> Dict:
     """Run dynawo for faults from list 2."""
@@ -30,7 +32,18 @@ def run_dynawo(network_dir: Path, faults_list2: List[str]) -> Dict:
 
             # Calculate CCT
             logger.info(f"Calculating CCT for {network_name} - {fault_data['static_id']}")
-            cct = compute_cct(par_file, jobs_file)
+            cct, gen_id = compute_cct(par_file, jobs_file)
+
+            # find generator name
+            if gen_id:
+                tree, root = parse_xml(iidm_file)
+                generators = root.xpath(f"//*[local-name()='generator' and @id='{gen_id}']/@name")
+                if generators:
+                    gen_name = generators[0]
+                else:
+                    gen_name = gen_id
+            else:
+                gen_name = "None"
 
             if cct < config.PROTECTION_DELAY:
                 status = "NOK"
@@ -45,10 +58,12 @@ def run_dynawo(network_dir: Path, faults_list2: List[str]) -> Dict:
             result_cct[fault_data['static_id']] = {
                 "status": status,
                 "margin": margin,
-                "CCT": cct
+                "CCT": cct,
+                "critical_generator": gen_name
             }
 
     return result_cct
+
 
 def set_files_compliant(fault_data, iidm_file: Path, dyd_file: Path, par_file: Path, jobs_file: Path) -> None:
     """Modify input files to be compliant with dynawo."""
@@ -59,7 +74,8 @@ def set_files_compliant(fault_data, iidm_file: Path, dyd_file: Path, par_file: P
     node_fault_dynawo(dyd_file, par_file, jobs_file)
     init_correction(dyd_file, par_file)
 
-def line_fault_dynawo(fault_data: Dict, iidm_file: Path, dyd_file: Path, par_file: Path):
+
+def line_fault_dynawo(fault_data: Dict, iidm_file: Path, dyd_file: Path, par_file: Path) -> None:
     """modify .iidm, .dyd and .par files to insert fault"""
 
     # modify .iidm file
@@ -265,7 +281,8 @@ def line_fault_dynawo(fault_data: Dict, iidm_file: Path, dyd_file: Path, par_fil
     etree.indent(root, space="  ")
     tree.write(par_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
 
-def node_fault_dynawo(dyd_file: Path, par_file: Path, jobs_file: Path):
+
+def node_fault_dynawo(dyd_file: Path, par_file: Path, jobs_file: Path) -> None:
     """input files modifications for node fault"""
 
     tree_dyd, root_dyd = parse_xml(dyd_file)
@@ -293,7 +310,8 @@ def node_fault_dynawo(dyd_file: Path, par_file: Path, jobs_file: Path):
     tree_dyd.write(dyd_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
     tree_par.write(par_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
 
-def init_correction(dyd_file: Path, par_file: Path):
+
+def init_correction(dyd_file: Path, par_file: Path) -> None:
     """Dynawo initialization correction for VRSemipol2 models"""
 
     tree_dyd, root_dyd = parse_xml(dyd_file)
@@ -318,16 +336,19 @@ def init_correction(dyd_file: Path, par_file: Path):
     tree_dyd.write(dyd_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
     tree_par.write(par_file, pretty_print=True, encoding="utf-8", xml_declaration=True)
 
-def compute_cct(par_file: Path, jobs_file: Path) -> float:
+
+def compute_cct(par_file: Path, jobs_file: Path) -> tuple[float, str]:
     """Calculate CCT using dichotomy."""
 
-    parser = etree.XMLParser(remove_blank_text=True)
-    tree = etree.parse(str(par_file), parser)
-    root = tree.getroot()
-    elements = root.xpath(".//*[@name='fault_tBegin' or @name='line_tBegin']")
+    tree_par, root_par = parse_xml(par_file)
+    tree_jobs, root_jobs = parse_xml(jobs_file)
+    elements = root_par.xpath(".//*[@name='fault_tBegin' or @name='line_tBegin']")
     t_fault = float(elements[0].get("value"))
     l_bound = t_fault + config.LOW_BOUND
     h_bound = t_fault + config.HIGH_BOUND
+    generator = None
+    outputs_dir = root_jobs.xpath("//*[local-name()='outputs']/@directory")[0]
+    log_file = root_jobs.xpath("//*[local-name()='outputs']//*[local-name()='appender']/@file")[0]
 
     while h_bound - l_bound > config.GAP:
         m = l_bound + (h_bound - l_bound) / 2
@@ -343,6 +364,7 @@ def compute_cct(par_file: Path, jobs_file: Path) -> float:
         elif res == 1:
             h_bound = m
             logger.info(f"Simulation failed for m = {m}")
+            generator = extract_gen(Path(par_file.parent, outputs_dir, "logs", log_file))
 
     cct = round(l_bound + (h_bound - l_bound) / 2, 3)
     update_par_file(par_file, cct)
@@ -354,7 +376,8 @@ def compute_cct(par_file: Path, jobs_file: Path) -> float:
     if res == 1:
         cct -= config.GAP
 
-    return cct-t_fault
+    return cct-t_fault, generator
+
 
 def update_par_file(file_path: Path, value: float) -> None:
     """Update tEnd and tEvent in .par file."""
@@ -372,3 +395,31 @@ def update_par_file(file_path: Path, value: float) -> None:
         t_disconnect.set("value", str(value))
 
     tree.write(str(file_path), encoding="UTF-8", xml_declaration=True, pretty_print=True)
+
+
+def extract_gen(path: Path) -> str | None | Any:
+    """Extract generator name from theta error in log file"""
+
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().splitlines()
+
+    for i, line in enumerate(lines):
+
+        if "ERROR" not in line:
+            continue
+        # Generator name: between "ERROR | " and " :"
+        gen_name = re.search(r"\| ERROR \|\s*(\S+)\s*:", line)
+
+        return gen_name.group(1) if gen_name else None
+
+
+def find_name(gen_id: str, iidm_file: Path) -> str | None:
+    """Find generator name based on id"""
+
+    tree, root = parse_xml(iidm_file)
+    generators = root.xpath(f"//*[local-name()='generator' and @id='{gen_id}']/@name")
+    if not generators:
+        return None
+
+    gen = generators[0]
+    return gen

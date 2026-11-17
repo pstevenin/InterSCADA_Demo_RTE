@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser(description="Choose configuration file.")
 parser.add_argument(
     "--config",
     type=str,
-    default="param_example.json",
+    default="param_france.json",
     help="configuration json file name",
 )
 args = parser.parse_args()
