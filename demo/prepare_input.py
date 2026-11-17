@@ -1,6 +1,3 @@
-#import os
-#from pathlib import Path
-#os.environ["GRAALVM_OPTIONS"] = f"-Dpowsybl.config.dirs={Path.cwd().parent / 'data'}"
 import json
 import logging
 import pandas as pd

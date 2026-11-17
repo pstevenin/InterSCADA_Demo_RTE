@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser(description="Choose configuration file.")
 parser.add_argument(
     "--config",
     type=str,
-    default="param_france.json",
+    default="param_example.json",
     help="configuration json file name",
 )
 args = parser.parse_args()
@@ -50,6 +50,7 @@ class Config:
         self.LOW_BOUND = params["low_bound"]
         self.HIGH_BOUND = params["high_bound"]
         self.GAP = params["gap"]
+        self.CPU = params["cpu"]
 
 # Unique instance, directly importable
 config = Config()

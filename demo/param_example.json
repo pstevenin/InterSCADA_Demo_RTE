@@ -22,6 +22,7 @@
         "time_lap": 0.1,
         "low_bound": 0.1,
         "high_bound": 0.8,
-        "gap": 0.01
+        "gap": 0.01,
+        "cpu": 20
     }
 }

@@ -3,9 +3,11 @@ import logging
 import pypowsybl as pp
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from lxml import etree
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from demo.config import config
 from demo.utils import get_network_files, parse_xml, get_fault_files
 
@@ -15,54 +17,63 @@ logger = logging.getLogger(__name__)
 def run_dynawo(network_dir: Path, faults_list2: List[str]) -> Dict:
     """Run dynawo for faults from list 2."""
 
-    network_name = network_dir.name
+    fault_files = [f for f in get_fault_files() if f.stem in faults_list2]
+    # Parallel launches
+    task = partial(_one_run_dynawo, network_dir=network_dir)
+    with ThreadPoolExecutor(max_workers=config.CPU) as pool:
+        outputs = list(pool.map(task, fault_files))
     result_cct = {}
-    fault_files = get_fault_files()
-
-    for fault_file in fault_files:
-
-        if fault_file.stem in faults_list2:
-
-            with open(fault_file) as f:
-                fault_data = json.load(f)
-
-            # Modify files to be compliant with dynawo
-            iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem)
-            set_files_compliant(fault_data, iidm_file, dyd_file, par_file, jobs_file)
-
-            # Calculate CCT
-            logger.info(f"Calculating CCT for {network_name} - {fault_data['static_id']}")
-            cct, gen_id = compute_cct(par_file, jobs_file)
-
-            # find generator name
-            if gen_id:
-                tree, root = parse_xml(iidm_file)
-                generators = root.xpath(f"//*[local-name()='generator' and @id='{gen_id}']/@name")
-                if generators:
-                    gen_name = generators[0]
-                else:
-                    gen_name = gen_id
-            else:
-                gen_name = "None"
-
-            if cct < config.PROTECTION_DELAY:
-                status = "NOK"
-                margin = "None"
-            elif cct < config.PROTECTION_DELAY + config.DELTA:
-                status = "LOW_MARGIN"
-                margin = cct - config.PROTECTION_DELAY
-            else:
-                status = "OK"
-                margin = "None"
-
-            result_cct[fault_data['static_id']] = {
-                "status": status,
-                "margin": margin,
-                "CCT": cct,
-                "critical_generator": gen_name
-            }
+    for key, result in outputs:
+        result_cct[key] = result
 
     return result_cct
+
+
+def _one_run_dynawo(fault_file: Path, network_dir: Path) -> Tuple[str, Dict]:
+    """Dynawo simulation for one fault."""
+
+    network_name = network_dir.name
+    with open(fault_file) as f:
+        fault_data = json.load(f)
+
+    # Modify files to be compliant with dynawo
+    iidm_file, dyd_file, jobs_file, par_file = get_network_files(
+        config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem
+    )
+    set_files_compliant(fault_data, iidm_file, dyd_file, par_file, jobs_file)
+
+    # Calculate CCT
+    logger.info(f"Calculating CCT for {network_name} - {fault_data['static_id']}")
+    cct, gen_id = compute_cct(par_file, jobs_file)
+
+    # find generator name
+    if gen_id:
+        tree, root = parse_xml(iidm_file)
+        generators = root.xpath(
+            f"//*[local-name()='generator' and @id='{gen_id}']/@name"
+        )
+        gen_name = generators[0] if generators else gen_id
+    else:
+        gen_name = "None"
+
+    if cct < config.PROTECTION_DELAY:
+        status = "NOK"
+        margin = "None"
+    elif cct < config.PROTECTION_DELAY + config.DELTA:
+        status = "LOW_MARGIN"
+        margin = cct - config.PROTECTION_DELAY
+    else:
+        status = "OK"
+        margin = "None"
+
+    result = {
+        "status": status,
+        "margin": margin,
+        "CCT": cct,
+        "critical_generator": gen_name,
+    }
+
+    return fault_data["static_id"], result
 
 
 def set_files_compliant(fault_data, iidm_file: Path, dyd_file: Path, par_file: Path, jobs_file: Path) -> None:

@@ -1,5 +1,7 @@
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 from typing import List, Tuple
 from demo.config import config
@@ -12,41 +14,48 @@ from deeac.IO.arguments_parser import DynawoRunConfiguration
 logger = logging.getLogger(__name__)
 
 
-def run_eeac(network_dir: Path) -> None:
+def run_eeac(network_dir: Path):
     """Run EEAC."""
 
     network_name = network_dir.name
-    temp_output_dir = config.OUTPUT_EEAC_DIR / network_name
-    temp_output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = config.OUTPUT_EEAC_DIR / network_name
+    output_dir.mkdir(parents=True, exist_ok=True)
     fault_files = get_fault_files()
+    # Parallel launches
+    task = partial(_one_run_eeac, network_dir = network_dir, network_name = network_name, output_dir=output_dir)
+    with ThreadPoolExecutor(max_workers=config.CPU) as pool:
+        list(pool.map(task, fault_files))
 
-    for fault_file in fault_files:
-        iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem)
-        fault_name = fault_file.stem
-        fault_output_dir = temp_output_dir / fault_name
-        fault_output_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Running EEAC for {network_name} - {fault_name}")
+def _one_run_eeac(fault_file, network_dir, network_name, output_dir):
+    """EEAC run for one fault."""
 
-        # Call to EEAC
-        config_dynawo = DynawoRunConfiguration(
-            jobs_file=str(jobs_file),
-            iidm_file=None,
-            dynawo_dyd_file=None,
-            dynawo_par_file=None,
-            dynawo_dyn_file=None,
-            execution_tree_file=str(config.INPUT_DIR / config.EEAC_PARAM_FILE),
-            execution_tree=None,
-            island_threshold=0.0,
-            cores=1,
-            protection_delay=0.0,
-            verbose=False,
-            output_dir=fault_output_dir,
-            json_path=None,
-            rewrite=True,
-            warn=False,
-        )
-        deeac_dynawo(config_dynawo)
+    iidm_file, dyd_file, jobs_file, par_file = get_network_files(config.OUTPUT_TEMP_DIR / network_dir.name / fault_file.stem)
+    fault_name = fault_file.stem
+    fault_output_dir = output_dir / fault_name
+    fault_output_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"Running EEAC for {network_name} - {fault_name}")
+
+    # Call to EEAC
+    config_dynawo = DynawoRunConfiguration(
+        jobs_file=str(jobs_file),
+        iidm_file=None,
+        dynawo_dyd_file=None,
+        dynawo_par_file=None,
+        dynawo_dyn_file=None,
+        execution_tree_file=str(config.INPUT_DIR / config.EEAC_PARAM_FILE),
+        execution_tree=None,
+        island_threshold=0.0,
+        cores=1,
+        protection_delay=0.0,
+        verbose=False,
+        output_dir=fault_output_dir,
+        json_path=None,
+        rewrite=True,
+        warn=False,
+    )
+    deeac_dynawo(config_dynawo)
 
 
 def parse_eeac_results(network_dir: Path) -> Tuple[List[Tuple[str, float, str]], List[str]]:
