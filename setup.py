@@ -8,11 +8,12 @@ setup(
         "numpy",
         "pandas",
         "lxml",
-        "pypowsybl"
+        "pypowsybl",
+        "pypowsybl_rte"
     ],
     entry_points={
         "console_scripts": [
-            "demo=demo.main:main",
+            "demo=demo.main:demo",
         ],
     },
     python_requires=">=3.10",

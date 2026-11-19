@@ -8,10 +8,10 @@ This demonstrator is part of the InterSCADA European project. It aims to run...
 - EEAC Inputs
 
 ## Install
-
+Install each of the following tools in the same folder.
 ### Install Dynawo
-- Follow build and deploy instructions on Dynawo GitHub: https://github.com/dynawo/dynawo
-- Chekout fix_dynaswing branch
+- Follow build instructions on Dynawo GitHub: https://github.com/dynawo/dynawo
+- Git Checkout in fix_dynaswing branch
 - Add line in myEnvDynawo.sh file:
 ```bash
 export ADDITIONAL_INCLUDE_FOLDER="/usr/include/c++/11/;/usr/include/x86_64-linux-gnu/c++/11/"
@@ -22,19 +22,31 @@ sp_res_expr = sp.sympify(rhs_res_expr, locals={'x': x, 'xd': xd, 'pow':sp.Pow , 
 ```
 - Final build:
 ```bash
-pip install clang-14
-build user
+pip install libclang==14.0.6
+pip install clang-format==14.0.6
+pip install simpy
+./myEnvDynawo.sh build-all
+./myEnvDynawo.sh deploy
 ```
 
 ### Install EEAC
-Follow installation instructions on EEAC GitHub: https://github.com/rte-france/extended-equal-area-criterion
+```bash
+git clone https://github.com/eRoots-Analytics/RTE-equal-area-criterion-testing EEAC
+cd EEAC
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+pip install build
+python -m build
+```
 
 ### Install Demo
 ```bash
-git clone 
+git clone https://github.com/pstevenin/InterSCADA_Demo_RTE Demo
 cd Demo
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
 pip install -e .
 ```
 

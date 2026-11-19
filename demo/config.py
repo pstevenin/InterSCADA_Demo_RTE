@@ -2,24 +2,30 @@ import argparse
 import json
 from pathlib import Path
 
-# Get config file
-parser = argparse.ArgumentParser(description="Choose configuration file.")
-parser.add_argument(
-    "--config",
-    type=str,
-    default="param_example.json",
-    help="configuration json file name",
-)
-args = parser.parse_args()
-
 BASE_DIR = Path(__file__).resolve().parent
-CONFIG_FILE = BASE_DIR / args.config
+DEFAULT_CONFIG = BASE_DIR / "param_example.json"
+
+
+def parse_config(argv=None):
+    parser = argparse.ArgumentParser(
+        prog="demo", description="Choose configuration file."
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        default=None,
+        help="configuration json file name (default: param_example.json)",
+    )
+    return parser.parse_args(argv)
+
 
 class Config:
+    """Vide à la création, remplie par load()."""
 
-    def __init__(self, config_path: Path = CONFIG_FILE):
+    def load(self, config_path=None):
+        path = Path(config_path).resolve() if config_path else DEFAULT_CONFIG
 
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         paths = data["paths"]
@@ -52,5 +58,12 @@ class Config:
         self.GAP = params["gap"]
         self.CPU = params["cpu"]
 
-# Unique instance, directly importable
+        return self
+
+
 config = Config()
+
+
+def init_config(argv=None):
+    """À appeler une fois, au début de demo()."""
+    return config.load(parse_config(argv).config)

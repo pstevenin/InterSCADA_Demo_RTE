@@ -8,7 +8,7 @@ import shutil
 import sys
 import time
 from datetime import datetime, timedelta
-from demo.config import config
+from demo.config import config, init_config
 from demo.eeac_runner import parse_eeac_results, run_eeac
 from demo.dynawo_runner import run_dynawo
 from demo.utils import get_fault_files
@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 def demo(args=None) -> None:
-    """ Main program: run process every 30 minutes."""
+    """ Main program: run process every x minutes."""
+    init_config(args)
 
     # Delete previous outputs
     if os.path.isdir(config.OUTPUT_DIR):
